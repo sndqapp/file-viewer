@@ -3,7 +3,7 @@
 <template>
     <div id="wrapper" :class="{ editing: isEditing }" :style="richTextStyle">
         <div id="canvaswrapper">
-            <canvas id="<? attr OutputID()?>" style="width: 100%"></canvas>
+            <canvas id="thecanvas" style="width: 100%"></canvas>
 
             <span id="nofile" v-if="content.fileurl == ''">{{ content.NoFileText }}</span>
 
@@ -203,7 +203,106 @@ export default {
             var thaturl = this.content.fileurl;
             var filetype = get_url_extension(thaturl);
             //var filetype = getdatatype(thaturl);
+            console.log("filetype="+filetype);
             if(filetype == "pdf"){
+
+                var url = this.content.fileurl;
+                var pdfcanvas = document.querySelector('thecanvas');
+                var pdfjsLib = window['pdfjs-dist/build/pdf'];
+                //pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+                
+                var pdfDoc = null,
+                pdfScale = 2,
+                pageNum = 1,
+                pageRendering = false,
+                pageNumPending = null,
+                canvas = document.getElementById('thecanvas'),
+                ctx = canvas.getContext('2d');
+                
+                function renderPage(num) {
+                
+                    if(this.content.FullWidthOfParent == true){
+                        var parent = document.getElementById('wrapper');
+                        var desiredWidth = parent.parentElement.clientWidth - 40;
+                    }else{
+                        var desiredWidth = this.content.width - 17;
+                    }
+                
+                    pageRendering = true;
+                    var scale = pdfScale;
+                    // Using promise to fetch the page
+                    pdfDoc.getPage(num).then(function(page){
+                    
+                        if(pdfScale == 1){ 
+                        var viewport = page.getViewport({ scale: 1, });
+                        var scale = desiredWidth / viewport.width;
+                        var scaledViewport = page.getViewport({ scale: scale });
+                        }else{
+                        var viewport = page.getViewport({ scale: 1, });
+                        var scale = (desiredWidth / viewport.width)*pdfScale;
+                        var scaledViewport = page.getViewport({ scale: scale });
+                        }
+                        canvas.height = scaledViewport.height;
+                        canvas.width = scaledViewport.width;
+                        //document.getElementById('wrapper').style.height = (canvas.height/2+200) +'px';
+                        if(this.content.OverflowY == "grow"){
+                            if (pdfScale > 1) {document.getElementById('wrapper').style.width = (canvas.width/2+17) +'px';}
+                            else
+                            {document.getElementById('wrapper').style.width = this.content.width/2+'px';}
+                        }
+                        
+                        var renderContext = {
+                        canvasContext: ctx,
+                        viewport: scaledViewport
+                        };
+                        var renderTask = page.render(renderContext);
+                    
+                        renderTask.promise.then(function() {
+                        pageRendering = false;
+                        if(pageNumPending !== null){
+                            // New page rendering is pending
+                            renderPage(pageNumPending);
+                            pageNumPending = null;
+                        }
+                        });
+                    });
+                
+                    document.getElementById('page_num').textContent = num;
+                }
+                
+                function queueRenderPage(num) {
+                if (pageRendering) {
+                    pageNumPending = num;
+                } else {
+                    renderPage(num);
+                }
+                }
+                
+                /**
+                 * functions related to navigation and zoom
+                 */
+                function onPrevPage() {
+                if (pageNum <= 1) {
+                    return;
+                }
+                pageNum--;
+                queueRenderPage(pageNum);
+                }
+
+                if(document.getElementById('prev')){
+                    document.getElementById('prev').addEventListener('click', onPrevPage);
+                }
+                function onNextPage() {
+                    if (pageNum >= pdfDoc.numPages) {
+                        return;
+                    }
+                    pageNum++;
+                    queueRenderPage(pageNum);
+                }
+                if(document.getElementById('next')){
+                    document.getElementById('next').addEventListener('click', onNextPage);
+                }
+
 
             }
 
@@ -218,8 +317,8 @@ export default {
             zoominbutton.onclick = function () {
                 pdfScale = pdfScale + 0.20;
                 if(filetype == "pdf"){
-                    var currcanvasw = $('#wrapper<? attr OutputId()?> canvas').width();
-                    $('#wrapper<? attr OutputId()?> canvas').width(currcanvasw * 1.2);
+                    var currcanvasw = document.getElementById("thecanvas").clientWidth;
+                    document.getElementById("thecanvas").style.width = (currcanvasw * 1.2);
                     queueRenderPage(pageNum);
                 }else{
                     var GFG = document.getElementById("previewimage");
@@ -239,8 +338,8 @@ export default {
             var zoomoutbutton = document.getElementById('zoomoutbutton');
             zoomoutbutton.onclick = function(){
                 if(filetype == "pdf"){
-                    var currcanvasw = $('#wrapper<? attr OutputId()?> canvas').width();
-                    $('#wrapper<? attr OutputId()?> canvas').width(currcanvasw / 1.2);
+                    var currcanvasw = document.getElementById("thecanvas").clientWidth;
+                    document.getElementById("thecanvas").style.width = (currcanvasw / 1.2);
                     if (pdfScale <= 0.25) {return;}
                     pdfScale = pdfScale - 0.20;
                     queueRenderPage(pageNum);
@@ -263,7 +362,7 @@ export default {
             var resetscalebutton = document.getElementById('resetscale');
             resetscalebutton.onclick = function(){
                 if(filetype == "pdf"){
-                    $('#<? attr OutputID()?>').width('100%');
+                    document.getElementById("thecanvas").style.width = '100%';
                     pdfScale = 2;
                     queueRenderPage(pageNum);
                 }else{
@@ -275,6 +374,49 @@ export default {
                     targ.style.transform = "scale(1)";
                 }
             };
+
+
+
+            if(filetype == "pdf"){
+                pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
+                pdfDoc = pdfDoc_;
+                document.getElementById('page_count').textContent = pdfDoc.numPages;
+                
+                if (pdfDoc.numPages == 1) {
+                $(".multipages").hide();
+                }
+                
+                renderPage(pageNum);
+                });
+
+                // add minimum height to get fixed box size
+                document.getElementById("canvaswrapper").style.minHeight = "450px";
+            }else{
+                // only code for the image to add in the canvas
+                var thatcanvas = document.getElementById("thecanvas");
+                if(thatcanvas){
+                    thatcanvas.style.display = "none";
+                }
+                //var grouparrows = document.getElementById("grouparrows");
+                //if(grouparrows){
+                //	grouparrows.style.display = "none";
+                //}
+
+                var cvswrap = document.getElementById("canvaswrapper");
+                if(cvswrap){
+                    var newfig = document.createElement("figure");
+                    newfig.className = "fig";
+                    cvswrap.appendChild(newfig);
+
+                    var newimg = new Image();
+                    newimg.id = "previewimage";
+                    newimg.className = "dragme";
+                    newimg.src = thaturl;
+                    newimg.setAttribute('data-zoom', '1');
+                    newfig.appendChild(newimg); 
+                }
+            }
+
 
         }
     }
@@ -289,12 +431,12 @@ export default {
 #menuwrapper{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);bottom:16px;}
 #pdf_menu{bottom:10px;height:40px;width:fit-content;background-color:white;border-radius:4px;display:flex;flex-direction:row;align-items:center;padding:0px 8px;margin-right:auto;margin-left:auto;margin-top:15px;box-shadow:0px 0px 5px rgba(17, 37, 62, 0.1);}
 #pdf_menu .btnitem{width:40px;height:40px;display:flex;align-items:center;justify-content:center;}
-#pdf_menu i, #pdf_menu svg{position:relative;font-size:24px;margin-left: var(--menupadding);margin-right:var(--menupadding);margin-top:auto;margin-bottom:auto;cursor:pointer}
+#pdf_menu i, #pdf_menu svg{position:relative;font-size:24px;margin-left:var(--menupadding);margin-right:var(--menupadding);margin-top:auto;margin-bottom:auto;cursor:pointer}
 #pdf_menu .multipages{display:flex;align-items:center;align-content:center;width:max-content;height:32px;padding:5px 0px 6px 0px;background-color:#F3F4F5;border-radius:32px;}
 #pdf_menu a{position:relative;font-size:24px;margin-left:0px;margin-right:0px;margin-top:auto;margin-bottom:auto;cursor:pointer;}
 #nofile{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);font-size:20px;}
 #the-canvas{border:1px solid black;direction:ltr;}
-#canvaswrapper{overflow-x:var(--overflowx);/*max-height: 450px;*/height: var(--canvasheight)}
+#canvaswrapper{overflow-x:var(--overflowx);/*max-height: 450px;*/height:var(--canvasheight)}
 #wrapper{position:relative;width:var(--FullWidthOfParent);min-height:300px;height:var(--FullHeightOfParent);border-radius:8px;background:#F9FAFB;
 box-shadow:inset 0px 0px 5px rgba(17, 37, 62, 0.1);
 padding-left:44px;padding-right:44px;padding-top:16px;padding-bottom:73px;}
