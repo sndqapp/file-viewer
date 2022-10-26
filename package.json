@@ -1,0 +1,17 @@
+{
+    "name": "file-viewer",
+    "version": "0.0.1",
+    "scripts": {
+        "build": "weweb build",
+        "serve": "weweb serve"
+    },
+    "devDependencies": {
+        "@vue/eslint-config-prettier": "^6.0.0",
+        "@weweb/cli": "latest",
+        "eslint": "^7.32.0",
+        "eslint-plugin-prettier": "^3.1.4",
+        "eslint-plugin-vue": "^9.6.0",
+        "prettier": "^2.1.2"
+    },
+    "dependencies": {}
+}
