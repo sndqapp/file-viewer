@@ -82,9 +82,13 @@
 <script>
 import { computed } from 'vue';
 
-
-import * as pdfworker2 from './pdfworker2.js'
 //import * as pdfjs2 from './pdfjs2.js'
+//import * as pdfworker2 from './pdfworker2.js'
+
+// Run `gulp dist-install` to generate 'pdfjs-dist' npm package files.
+const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+
+const workerSrc = require('pdfjs-dist/build/pdf.worker.js')
 
 export default {
     inheritAttrs: false,
@@ -198,6 +202,79 @@ export default {
                 }
             }
 
+            var that = this;
+            function renderPage(num) {
+                
+                if(that.content.FullWidthOfParent == true){
+                    var parent = document.getElementById('wrapper');
+                    var desiredWidth = parent.parentElement.clientWidth - 40;
+                }else{
+                    var desiredWidth = that.content.width - 17;
+                }
+            
+                pageRendering = true;
+                var scale = pdfScale;
+                // Using promise to fetch the page
+                pdfDoc.getPage(num).then(function(page){
+                
+                    if(pdfScale == 1){ 
+                    var viewport = page.getViewport({ scale: 1, });
+                    var scale = desiredWidth / viewport.width;
+                    var scaledViewport = page.getViewport({ scale: scale });
+                    }else{
+                    var viewport = page.getViewport({ scale: 1, });
+                    var scale = (desiredWidth / viewport.width)*pdfScale;
+                    var scaledViewport = page.getViewport({ scale: scale });
+                    }
+                    canvas.height = scaledViewport.height;
+                    canvas.width = scaledViewport.width;
+                    //document.getElementById('wrapper').style.height = (canvas.height/2+200) +'px';
+                    if(that.content.OverflowY == "grow"){
+                        if (pdfScale > 1) {document.getElementById('wrapper').style.width = (canvas.width/2+17) +'px';}
+                        else
+                        {document.getElementById('wrapper').style.width = that.content.width/2+'px';}
+                    }
+                    
+                    var renderContext = {
+                    canvasContext: ctx,
+                    viewport: scaledViewport
+                    };
+                    var renderTask = page.render(renderContext);
+                
+                    renderTask.promise.then(function() {
+                    pageRendering = false;
+                    if(pageNumPending !== null){
+                        // New page rendering is pending
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                    });
+                });
+            
+                if(document.getElementById('page_num')){
+                    document.getElementById('page_num').textContent = num;
+                }
+            }
+            
+            function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+            }
+            
+            /**
+             * functions related to navigation and zoom
+             */
+            function onPrevPage() {
+            if (pageNum <= 1) {
+                return;
+            }
+            pageNum--;
+            queueRenderPage(pageNum);
+            }
+
 
             //TODO load the pdf or image
             var thaturl = this.content.fileurl;
@@ -208,9 +285,12 @@ export default {
 
                 var url = this.content.fileurl;
                 var pdfcanvas = document.querySelector('thecanvas');
-                var pdfjsLib = window['pdfjs-dist/build/pdf'];
-                //pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
-                
+
+                //var pdfjsLib = window['pdfjs-dist/build/pdf'];
+                //pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+
                 var pdfDoc = null,
                 pdfScale = 2,
                 pageNum = 1,
@@ -219,75 +299,7 @@ export default {
                 canvas = document.getElementById('thecanvas'),
                 ctx = canvas.getContext('2d');
                 
-                function renderPage(num) {
-                
-                    if(this.content.FullWidthOfParent == true){
-                        var parent = document.getElementById('wrapper');
-                        var desiredWidth = parent.parentElement.clientWidth - 40;
-                    }else{
-                        var desiredWidth = this.content.width - 17;
-                    }
-                
-                    pageRendering = true;
-                    var scale = pdfScale;
-                    // Using promise to fetch the page
-                    pdfDoc.getPage(num).then(function(page){
-                    
-                        if(pdfScale == 1){ 
-                        var viewport = page.getViewport({ scale: 1, });
-                        var scale = desiredWidth / viewport.width;
-                        var scaledViewport = page.getViewport({ scale: scale });
-                        }else{
-                        var viewport = page.getViewport({ scale: 1, });
-                        var scale = (desiredWidth / viewport.width)*pdfScale;
-                        var scaledViewport = page.getViewport({ scale: scale });
-                        }
-                        canvas.height = scaledViewport.height;
-                        canvas.width = scaledViewport.width;
-                        //document.getElementById('wrapper').style.height = (canvas.height/2+200) +'px';
-                        if(this.content.OverflowY == "grow"){
-                            if (pdfScale > 1) {document.getElementById('wrapper').style.width = (canvas.width/2+17) +'px';}
-                            else
-                            {document.getElementById('wrapper').style.width = this.content.width/2+'px';}
-                        }
-                        
-                        var renderContext = {
-                        canvasContext: ctx,
-                        viewport: scaledViewport
-                        };
-                        var renderTask = page.render(renderContext);
-                    
-                        renderTask.promise.then(function() {
-                        pageRendering = false;
-                        if(pageNumPending !== null){
-                            // New page rendering is pending
-                            renderPage(pageNumPending);
-                            pageNumPending = null;
-                        }
-                        });
-                    });
-                
-                    document.getElementById('page_num').textContent = num;
-                }
-                
-                function queueRenderPage(num) {
-                if (pageRendering) {
-                    pageNumPending = num;
-                } else {
-                    renderPage(num);
-                }
-                }
-                
-                /**
-                 * functions related to navigation and zoom
-                 */
-                function onPrevPage() {
-                if (pageNum <= 1) {
-                    return;
-                }
-                pageNum--;
-                queueRenderPage(pageNum);
-                }
+
 
                 if(document.getElementById('prev')){
                     document.getElementById('prev').addEventListener('click', onPrevPage);
@@ -380,10 +392,12 @@ export default {
             if(filetype == "pdf"){
                 pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
                 pdfDoc = pdfDoc_;
-                document.getElementById('page_count').textContent = pdfDoc.numPages;
-                
-                if (pdfDoc.numPages == 1) {
-                $(".multipages").hide();
+                if(document.getElementById('page_count')){
+                    document.getElementById('page_count').textContent = pdfDoc.numPages;
+                }
+
+                if(pdfDoc.numPages == 1){
+                    document.getElementsByClassName('multipages').style.display = 'none';
                 }
                 
                 renderPage(pageNum);
