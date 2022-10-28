@@ -29,6 +29,7 @@ export default{
             type: 'Text',
             section: 'settings',
             bindable: true,
+            responsive: true,
             defaultValue: 'https://weweb-production.s3.amazonaws.com/designs/5fdf509b-9db3-44af-9974-1f631c06a0b9/files/sample-3pp.pdf'
         },
 		FullHeightOfParent:{

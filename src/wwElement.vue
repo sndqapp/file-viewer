@@ -1,12 +1,10 @@
 <!-- Copyright SNDQ 2022 -->
 
 <template>
-    <div id="wrapper" :class="{ editing: isEditing }" :style="richTextStyle">
+    <div id="previewwrapper" :class="{ editing: isEditing }" :style="richTextStyle">
         <div id="canvaswrapper">
-            <canvas id="thecanvas" style="width: 100%"></canvas>
-
-            <span id="nofile" v-if="content.fileurl == ''">{{ content.NoFileText }}</span>
-
+            <canvas id="thecanvas" style="width:100%"></canvas>
+            <div id="nofile" v-if="content.fileurl == ''">{{ content.NoFileText }}</div>
         </div>
         <div id="menuwrapper">
             <div id="pdf_menu">
@@ -60,7 +58,7 @@
 
                 
                 <div class="btnitem">
-                <a href="{{ content.fileurl }}" download="TODOFILENAME"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <a v-bind:href="content.fileurl" download target="_blank"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M7.99998 12C8.29998 12 8.49998 11.9 8.69998 11.7L13.7 6.7C14.0866 6.3134 14.0866 5.6866 13.7 5.3C13.3134 4.9134 12.6866 4.9134 12.3 5.3L8.99998 8.6V1C8.99998 0.447715 8.55226 0 7.99998 0C7.44769 0 6.99998 0.447715 6.99998 1V8.6L3.69998 5.3C3.31338 4.9134 2.68657 4.9134 2.29998 5.3C1.91338 5.6866 1.91338 6.3134 2.29998 6.7L7.29998 11.7C7.49998 11.9 7.69998 12 7.99998 12Z" fill="#11253E"/>
                 <path d="M14 14H2C1.44772 14 1 14.4477 1 15C1 15.5523 1.44772 16 2 16H14C14.5523 16 15 15.5523 15 15C15 14.4477 14.5523 14 14 14Z" fill="#11253E"/>
                 </svg>
@@ -81,13 +79,7 @@
 
 <script>
 import { computed } from 'vue';
-
-//import * as pdfjs2 from './pdfjs2.js'
-//import * as pdfworker2 from './pdfworker2.js'
-
-// Run `gulp dist-install` to generate 'pdfjs-dist' npm package files.
 const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
-
 const workerSrc = require('pdfjs-dist/build/pdf.worker.js')
 
 export default {
@@ -156,6 +148,12 @@ export default {
     },
     watch: {
         'content.fileurl'(newValue) {
+            // console.log("new value: "+newValue)
+            newValue = parseFloat(newValue);
+            if (isNaN(newValue)) newValue = 0;
+            if (newValue === this.value) return;
+            this.$emit("trigger-event", { name: "initValueChange", event: { value: newValue } });
+            this.handleObserver();
         }
     },
     beforeUnmount() {
@@ -172,41 +170,10 @@ export default {
                 return url.split(/[#?]/)[0].split('.').pop().trim();
             }
 
-            function getBase64FromImageUrl(url) {
-                var img = new Image();
-
-                img.setAttribute('crossOrigin', 'anonymous');
-
-                img.onload = function () {
-                    var canvas = document.createElement("canvas");
-                    canvas.width =this.width;
-                    canvas.height =this.height;
-
-                    var ctx = canvas.getContext("2d");
-                    ctx.drawImage(this, 0, 0);
-
-                    var dataURL = canvas.toDataURL("image/png");
-                    //alert(dataURL.replace(/^data:image\/(png|jpg);base64,/, ""));
-                    return(dataURL);
-                };
-
-                img.src = url;
-            }
-
-            function getdatatype(url){
-                var search = "data:application/pdf";
-                if(url.includes(search)){
-                    return "pdf";
-                }else{
-                    return "";
-                }
-            }
-
             var that = this;
             function renderPage(num) {
-                
                 if(that.content.FullWidthOfParent == true){
-                    var parent = document.getElementById('wrapper');
+                    var parent = document.getElementById('previewwrapper');
                     var desiredWidth = parent.parentElement.clientWidth - 40;
                 }else{
                     var desiredWidth = that.content.width - 17;
@@ -216,7 +183,6 @@ export default {
                 var scale = pdfScale;
                 // Using promise to fetch the page
                 pdfDoc.getPage(num).then(function(page){
-                
                     if(pdfScale == 1){ 
                     var viewport = page.getViewport({ scale: 1, });
                     var scale = desiredWidth / viewport.width;
@@ -228,11 +194,11 @@ export default {
                     }
                     canvas.height = scaledViewport.height;
                     canvas.width = scaledViewport.width;
-                    //document.getElementById('wrapper').style.height = (canvas.height/2+200) +'px';
+                    //document.getElementById('previewwrapper').style.height = (canvas.height/2+200) +'px';
                     if(that.content.OverflowY == "grow"){
-                        if (pdfScale > 1) {document.getElementById('wrapper').style.width = (canvas.width/2+17) +'px';}
+                        if (pdfScale > 1) {document.getElementById('previewwrapper').style.width = (canvas.width/2+17) +'px';}
                         else
-                        {document.getElementById('wrapper').style.width = that.content.width/2+'px';}
+                        {document.getElementById('previewwrapper').style.width = that.content.width/2+'px';}
                     }
                     
                     var renderContext = {
@@ -257,31 +223,28 @@ export default {
             }
             
             function queueRenderPage(num) {
-            if (pageRendering) {
-                pageNumPending = num;
-            } else {
-                renderPage(num);
-            }
+                if (pageRendering) {
+                    pageNumPending = num;
+                } else {
+                    renderPage(num);
+                }
             }
             
             /**
              * functions related to navigation and zoom
              */
             function onPrevPage() {
-            if (pageNum <= 1) {
-                return;
-            }
-            pageNum--;
-            queueRenderPage(pageNum);
+                if (pageNum <= 1) {
+                    return;
+                }
+                pageNum--;
+                queueRenderPage(pageNum);
             }
 
-
-            //TODO load the pdf or image
             var thaturl = this.content.fileurl;
             var filetype = get_url_extension(thaturl);
-            //var filetype = getdatatype(thaturl);
-            console.log("filetype="+filetype);
-            if(filetype == "pdf"){
+            // console.log("filetype="+filetype);
+            if(filetype == "pdf" && thaturl != ""){
 
                 var url = this.content.fileurl;
                 var pdfcanvas = document.querySelector('thecanvas');
@@ -289,7 +252,6 @@ export default {
                 //var pdfjsLib = window['pdfjs-dist/build/pdf'];
                 //pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
                 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-
 
                 var pdfDoc = null,
                 pdfScale = 2,
@@ -299,8 +261,6 @@ export default {
                 canvas = document.getElementById('thecanvas'),
                 ctx = canvas.getContext('2d');
                 
-
-
                 if(document.getElementById('prev')){
                     document.getElementById('prev').addEventListener('click', onPrevPage);
                 }
@@ -314,8 +274,6 @@ export default {
                 if(document.getElementById('next')){
                     document.getElementById('next').addEventListener('click', onNextPage);
                 }
-
-
             }
 
             //----
@@ -326,53 +284,59 @@ export default {
             var stepZoomScale = this.content.stepZoomScale/100;
 
             var zoominbutton = document.getElementById('zoominbutton');
-            zoominbutton.onclick = function () {
+            zoominbutton.addEventListener("click", actionzoomin, false);
+            
+            function actionzoomin() {
                 pdfScale = pdfScale + 0.20;
                 if(filetype == "pdf"){
                     var currcanvasw = document.getElementById("thecanvas").clientWidth;
-                    document.getElementById("thecanvas").style.width = (currcanvasw * 1.2);
+                    document.getElementById("thecanvas").style.width = (currcanvasw * 1.2) + "px";
                     queueRenderPage(pageNum);
                 }else{
                     var GFG = document.getElementById("previewimage");
                     var currHeight = GFG.clientHeight;
-                    //GFG.style.height = (currHeight + 40) + "px";
+                    // GFG.style.height = (currHeight + 40) + "px";
                     var num = parseFloat(GFG.getAttribute('data-zoom'));
                     var poscalc = (num+parseFloat(stepZoomScale));
                     if(poscalc > parseFloat(maxAllowedZoomScale)){
                         poscalc = parseFloat(maxAllowedZoomScale);
                     }
-                    //console.log("A de zoom value: " + poscalc);
+                    // console.log("A de zoom value: " + poscalc);
                     GFG.style.transform = "scale("+poscalc+")";
                     GFG.setAttribute('data-zoom', poscalc);
                 }
             };
 
             var zoomoutbutton = document.getElementById('zoomoutbutton');
-            zoomoutbutton.onclick = function(){
+            zoomoutbutton.addEventListener("click", actionzoomout, false);
+
+            function actionzoomout(){
                 if(filetype == "pdf"){
                     var currcanvasw = document.getElementById("thecanvas").clientWidth;
-                    document.getElementById("thecanvas").style.width = (currcanvasw / 1.2);
-                    if (pdfScale <= 0.25) {return;}
+                    document.getElementById("thecanvas").style.width = (currcanvasw / 1.2) + "px";
+                    if(pdfScale <= 0.25){return;}
                     pdfScale = pdfScale - 0.20;
                     queueRenderPage(pageNum);
                 }else{
                     pdfScale = pdfScale - 0.20;
                     var GFG = document.getElementById("previewimage");
                     var currHeight = GFG.clientHeight;
-                    //GFG.style.height = (currHeight - 40) + "px";
+                    // GFG.style.height = (currHeight - 40) + "px";
                     var num = parseFloat(GFG.getAttribute('data-zoom'));
                     var negcalc = (num - parseFloat(stepZoomScale));
                     if(negcalc <= parseFloat(minAllowedZoomScale)){
                         negcalc = parseFloat(minAllowedZoomScale);
                     }
-                    //console.log("B de zoom value: " + negcalc);
+                    // console.log("B de zoom value: " + negcalc);
                     GFG.style.transform = "scale("+negcalc+")";
                     GFG.setAttribute('data-zoom', negcalc);
                 }
             };
 
             var resetscalebutton = document.getElementById('resetscale');
-            resetscalebutton.onclick = function(){
+            resetscalebutton.addEventListener("click", actionzoomreset, false);
+            
+            function actionzoomreset(){
                 if(filetype == "pdf"){
                     document.getElementById("thecanvas").style.width = '100%';
                     pdfScale = 2;
@@ -386,10 +350,24 @@ export default {
                     targ.style.transform = "scale(1)";
                 }
             };
+            //----
 
+            if(filetype == "pdf" && thaturl != ""){
+                var thatcanvas = document.getElementById("thecanvas");
+                if(thatcanvas){
+                    thatcanvas.style.display = "block";
+                }
 
+                // if there is a figure node, remove it first
+                var cvswrap = document.getElementById("canvaswrapper");
+                if(cvswrap){
+                    var firstfig = cvswrap.getElementsByTagName("figure")[0];
+                    if(firstfig){
+                        firstfig.parentNode.removeChild(firstfig);
+                    }
+                }
 
-            if(filetype == "pdf"){
+                // the initial pdf load
                 pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
                 pdfDoc = pdfDoc_;
                 if(document.getElementById('page_count')){
@@ -405,7 +383,7 @@ export default {
 
                 // add minimum height to get fixed box size
                 document.getElementById("canvaswrapper").style.minHeight = "450px";
-            }else{
+            }else if(thaturl != ""){
                 // only code for the image to add in the canvas
                 var thatcanvas = document.getElementById("thecanvas");
                 if(thatcanvas){
@@ -415,9 +393,15 @@ export default {
                 //if(grouparrows){
                 //	grouparrows.style.display = "none";
                 //}
-
+                
+                // the initial image load
                 var cvswrap = document.getElementById("canvaswrapper");
                 if(cvswrap){
+                    // if there is a fig, remove it first
+                    var firstfig = cvswrap.getElementsByClassName("fig")[0];
+                    if(firstfig){
+                        firstfig.parentNode.removeChild(firstfig);
+                    }
                     var newfig = document.createElement("figure");
                     newfig.className = "fig";
                     cvswrap.appendChild(newfig);
@@ -427,32 +411,86 @@ export default {
                     newimg.className = "dragme";
                     newimg.src = thaturl;
                     newimg.setAttribute('data-zoom', '1');
+                    newimg.addEventListener("dblclick", imagezoomin);  
                     newfig.appendChild(newimg); 
                 }
             }
 
+            function imagezoomin(){
+                actionzoomin();
+            }
 
+            // Image drag function
+            var offsetX;
+            var offsetY;
+            var coordX;
+            var coordY;
+            var drag;
+            function startDrag(e){
+                if(!e){var e = window.event;}
+                //var targ = e.target ? e.target : e.srcElement;
+                var targ = document.getElementById("previewimage");
+                if(targ){
+                    if(targ.className !== 'dragme'){return}
+                    offsetX = e.clientX;
+                    offsetY = e.clientY;
+            
+                    if(!targ.style.left){targ.style.left = '0px'}
+                    if(!targ.style.top){targ.style.top = '0px'}
+                    coordX = parseInt(targ.style.left);
+                    coordY = parseInt(targ.style.top);
+                    drag = true;
+            
+                    document.onmousemove = dragDiv;
+                    return false;
+                }
+            }
+            function dragDiv(e){
+                if(!drag){return}
+                if(!e){var e = window.event}
+                //var targ = e.target ? e.target : e.srcElement;
+                var targ = document.getElementById("previewimage");
+                if(targ){
+                    // move div element
+                    targ.style.left = coordX + e.clientX - offsetX + 'px';
+                    targ.style.top = coordY + e.clientY - offsetY + 'px';
+                    return false;
+                }
+            }
+            function stopDrag(){
+                drag = false;
+            }
+
+            function addMoveImage(){
+                document.onmousedown = startDrag;
+                document.onmouseup = stopDrag;
+            }
+            addMoveImage();
+            //---
         }
     }
 };
 </script>
 
-<style scoped>
+<style module>
+.fig{overflow:hidden;width:auto;height:inherit;position:relative;display:flex;justify-content:center;height:100%;margin:0;align-items:center}
+.fig img{width:100%;height:100%;object-fit:contain;position:absolute;cursor:grab}
+.fig img:active{cursor:grabbing}
+</style>
 
+<style scoped>
 .dragme{position:relative;cursor:move}
-.fig{overflow:hidden;width:auto;height:inherit}
-.fig img{width:100%;height:100%;object-fit:contain;}
-#menuwrapper{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);bottom:16px;}
-#pdf_menu{bottom:10px;height:40px;width:fit-content;background-color:white;border-radius:4px;display:flex;flex-direction:row;align-items:center;padding:0px 8px;margin-right:auto;margin-left:auto;margin-top:15px;box-shadow:0px 0px 5px rgba(17, 37, 62, 0.1);}
-#pdf_menu .btnitem{width:40px;height:40px;display:flex;align-items:center;justify-content:center;}
+#menuwrapper{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);bottom:16px}
+#pdf_menu{bottom:10px;height:40px;width:fit-content;background-color:white;border-radius:4px;display:flex;flex-direction:row;align-items:center;padding:0px 8px;margin-right:auto;margin-left:auto;margin-top:15px;box-shadow:0px 0px 5px rgba(17, 37, 62, 0.1)}
+#pdf_menu .btnitem{width:40px;height:40px;display:flex;align-items:center;justify-content:center}
 #pdf_menu i, #pdf_menu svg{position:relative;font-size:24px;margin-left:var(--menupadding);margin-right:var(--menupadding);margin-top:auto;margin-bottom:auto;cursor:pointer}
-#pdf_menu .multipages{display:flex;align-items:center;align-content:center;width:max-content;height:32px;padding:5px 0px 6px 0px;background-color:#F3F4F5;border-radius:32px;}
-#pdf_menu a{position:relative;font-size:24px;margin-left:0px;margin-right:0px;margin-top:auto;margin-bottom:auto;cursor:pointer;}
-#nofile{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);font-size:20px;}
-#the-canvas{border:1px solid black;direction:ltr;}
+#pdf_menu .multipages{display:flex;align-items:center;align-content:center;width:max-content;height:32px;padding:5px 0px 6px 0px;background-color:#F3F4F5;border-radius:32px}
+#pdf_menu a{position:relative;font-size:24px;margin-left:0px;margin-right:0px;margin-top:auto;margin-bottom:auto;cursor:pointer}
+#nofile{position:absolute;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);font-size:20px}
+#the-canvas{border:1px solid black;direction:ltr}
 #canvaswrapper{overflow-x:var(--overflowx);/*max-height: 450px;*/height:var(--canvasheight)}
-#wrapper{position:relative;width:var(--FullWidthOfParent);min-height:300px;height:var(--FullHeightOfParent);border-radius:8px;background:#F9FAFB;
+#previewwrapper{position:relative;width:var(--FullWidthOfParent);min-height:300px;height:var(--FullHeightOfParent);border-radius:8px;background:#F9FAFB;
 box-shadow:inset 0px 0px 5px rgba(17, 37, 62, 0.1);
-padding-left:44px;padding-right:44px;padding-top:16px;padding-bottom:73px;}
-#wrapper canvas{margin-left:auto;margin-right:auto;padding:0;margin:auto;display:block;position:relative;top:0;bottom:0;left:0;right:0;}
+padding-left:44px;padding-right:44px;padding-top:16px;padding-bottom:73px}
+#previewwrapper canvas{margin-left:auto;margin-right:auto;padding:0;margin:auto;display:block;position:relative;top:0;bottom:0;left:0;right:0}
 </style>
