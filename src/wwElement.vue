@@ -167,7 +167,11 @@ export default {
             if (!this.isMounted) return;
 
             function get_url_extension(url) {
-                return url.split(/[#?]/)[0].split('.').pop().trim();
+            	if (typeof(url) === 'string') {
+                    return url.split(/[#?]/)[0].split('.').pop().trim();
+                }else{
+                    return "";
+                }
             }
 
             var that = this;
@@ -242,7 +246,7 @@ export default {
             }
 
             var thaturl = this.content.fileurl;
-            var filetype = get_url_extension(thaturl);
+            var filetype = get_url_extension(thaturl) || "";
             // console.log("filetype="+filetype);
             if(filetype == "pdf" && thaturl != ""){
 
