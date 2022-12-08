@@ -166,12 +166,12 @@ export default {
         handleObserver() {
             if (!this.isMounted) return;
 
-            function get_url_extension(url) {
-            	if (typeof(url) === 'string') {
-                    return url.split(/[#?]/)[0].split('.').pop().trim();
-                }else{
-                    return "";
-                }
+            function getExtension(url) {
+                var extStart = url.indexOf('.',url.lastIndexOf('/')+1);
+                if (extStart==-1) return false;
+                var ext = url.substr(extStart+1),
+                    extEnd = ext.search(/$|[?#]/);
+                return ext.substring (0,extEnd);
             }
 
             var that = this;
@@ -246,7 +246,7 @@ export default {
             }
 
             var thaturl = this.content.fileurl;
-            var filetype = get_url_extension(thaturl) || "";
+            var filetype = getExtension(thaturl);
             // console.log("filetype="+filetype);
             if(filetype == "pdf" && thaturl != ""){
 
